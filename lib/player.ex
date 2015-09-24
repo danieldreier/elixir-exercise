@@ -13,6 +13,15 @@ defmodule Player do
     {:reply, maybe(), state}
   end
 
+  def handle_call({:serve, pid}, _from, state) do
+    case GenServer.call(pid, :ball) do
+      :hit  -> {:reply, {:giveup}, state}
+      :miss -> {:reply, {:won}, state}
+    end
+    #response = GenServer.call(pid, :ball)
+    #{:reply, {:response, response}, state}
+  end
+
   def handle_cast(_req, state) do
     {:noreply, state}
   end
@@ -27,7 +36,7 @@ defmodule Player do
     :hit
   end
 
-  defp maybe(num) do
+  defp maybe(_num) do
     :miss
   end
 
