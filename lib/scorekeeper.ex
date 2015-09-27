@@ -1,17 +1,17 @@
+# next steps:
+# add concept of multiple games
+# end games
 
 defmodule Scorekeeper do
   use GenServer
 
-  # take a map of scores and increment the winner's
-  # score by one point
-  def increment(state, pid) do
-    Map.put(state, pid, Map.get(state, pid, 0) + 1)
-  end
-
-  def is_victor?(state, pid) do
-    case Map.get(state, pid, 0) do
-      score when score >= 11 -> true
-      score when score <  11 -> false
+  # Determine whether the game has been won or should continue
+  def game_state(state) do
+    # this is intended to crash if the game erroneously reaches a state with
+    # multiple winners due to players not respecting responses
+    case Enum.filter(Map.to_list(state), fn({_pid, score}) -> score >= 11 end) do
+      [{winner, _score}] -> {:winner, winner}
+      []                 -> :ongoing
     end
   end
 
@@ -27,16 +27,21 @@ defmodule Scorekeeper do
     {:reply, state, state}
   end
 
+  # when a player wins a round they send a :won message to the scorekeeper
+  # players are expected to stop playing after getting a :you_won or :you_lost
+  # response.
+  #
+  # implemented using {:won, pid} instead of using :from to simplify testing
   def handle_call({:won, pid}, _from, scores) do
-    scores = increment(scores, pid)
-    case is_victor?(scores, pid) do
-      true  -> {:reply, {:you_won, scores}, scores}
-      false -> {:reply, {:ok, scores}, scores}
+    scores = Map.put(state, pid, Map.get(state, pid, 0) + 1)
+    case game_state(scores) do
+      {:winner, ^pid}    -> {:reply, {:you_won,  scores}, scores}
+      {:winner, _winner} -> {:reply, {:you_lost, scores}, scores}
+      :ongoing           -> {:reply, {:ok,       scores}, scores}
     end
-    # we still need to do something to start the next round
   end
 
-  def handle_cast({:won, player}, state) do
+  def handle_cast({:won, _player}, state) do
     {:noreply, state}
   end
 
